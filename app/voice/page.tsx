@@ -2,70 +2,65 @@
 
 import { useEffect, useRef, useState } from "react";
 
-type RecognitionType = SpeechRecognition | webkitSpeechRecognition;
-
 export default function VoicePage() {
-  const [isSupported, setIsSupported] = useState<boolean | null>(null);
+  const [isSupported, setIsSupported] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [originalText, setOriginalText] = useState("");
-  const [translatedText, setTranslatedText] = useState("");
-  const recognitionRef = useRef<RecognitionType | null>(null);
+  const [translatedText, setTranslatedText] = useState(
+    "Μόλις ξεκινήσει η αναγνώριση εδώ θα μπαίνει demo \"μετάφραση\"…"
+  );
 
+  const recognitionRef = useRef<any | null>(null);
+
+  // Έλεγχος υποστήριξης Web Speech API στον browser
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const SpeechRecognition =
-      (window as any).SpeechRecognition ||
-      (window as any).webkitSpeechRecognition;
+    const SpeechRecognitionClass =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
-    if (!SpeechRecognition) {
+    if (SpeechRecognitionClass) {
+      setIsSupported(true);
+      const recognition = new SpeechRecognitionClass();
+      recognition.lang = "el-GR"; // demo γλώσσα
+      recognition.continuous = true;
+      recognition.interimResults = true;
+
+      recognition.onresult = (event: any) => {
+        let text = "";
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          text += event.results[i][0].transcript;
+        }
+        setOriginalText(text);
+
+        // Demo "μετάφραση": απλά προσθέτουμε ένα μήνυμα.
+        setTranslatedText(
+          `Demo μετάφραση (όχι πραγματική):\n\n${text || "[Περίμενε λίγο κείμενο...]"}`
+        );
+      };
+
+      recognition.onend = () => {
+        setIsListening(false);
+      };
+
+      recognitionRef.current = recognition;
+    } else {
       setIsSupported(false);
-      return;
     }
-
-    const recognition: RecognitionType = new SpeechRecognition();
-    recognition.lang = "el-GR"; // ελληνικά αρχικά – αλλάζει μετά
-    recognition.continuous = true;
-    recognition.interimResults = true;
-
-    recognition.onresult = (event: SpeechRecognitionEvent) => {
-      let text = "";
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        text += event.results[i][0].transcript;
-      }
-      setOriginalText(text.trim());
-      // προσωρινή "μετάφραση" για demo
-      setTranslatedText(
-        text.trim()
-          ? text.trim() + "  (translated — demo, πραγματική μετάφραση στο επόμενο στάδιο)"
-          : ""
-      );
-    };
-
-    recognition.onerror = () => {
-      setIsListening(false);
-    };
-
-    recognition.onend = () => {
-      setIsListening(false);
-    };
-
-    recognitionRef.current = recognition;
-    setIsSupported(true);
   }, []);
 
   const handleStart = () => {
-    if (!recognitionRef.current) return;
+    if (!isSupported || !recognitionRef.current) return;
     try {
       recognitionRef.current.start();
       setIsListening(true);
     } catch {
-      // αν είναι ήδη σε start, αγνοούμε το error
+      // Μερικοί browsers πετάνε error αν είναι ήδη on
     }
   };
 
   const handleStop = () => {
-    if (!recognitionRef.current) return;
+    if (!isSupported || !recognitionRef.current) return;
     recognitionRef.current.stop();
     setIsListening(false);
   };
@@ -79,100 +74,88 @@ export default function VoicePage() {
         padding: "32px 16px 40px",
       }}
     >
-      <div
-        style={{
-          width: "100%",
-          maxWidth: "1100px",
-        }}
-      >
-        <header
-          style={{
-            marginBottom: "24px",
-          }}
-        >
+      <div style={{ width: "100%", maxWidth: "1100px" }}>
+        {/* HEADER */}
+        <header style={{ marginBottom: "24px" }}>
           <h1
             style={{
-              fontSize: "clamp(2rem, 3.4vw, 2.6rem)",
+              fontSize: "clamp(2.1rem, 3.6vw, 2.9rem)",
               fontWeight: 700,
               color: "#bfdbfe",
-              letterSpacing: "0.08em",
+              letterSpacing: "0.12em",
               textTransform: "uppercase",
             }}
           >
-            Voice · Live Interpreter
+            VOICE · LIVE INTERPRETER
           </h1>
           <p
             style={{
               marginTop: "10px",
               fontSize: "0.95rem",
-              maxWidth: "650px",
+              maxWidth: "700px",
               opacity: 0.9,
             }}
           >
-            Demo ζωντανού διερμηνέα φωνής. Πάτα Start, μίλα στο μικρόφωνο και
-            θα δεις το κείμενο να εμφανίζεται στο &quot;Original Speech&quot;.
-            Προς το παρόν η &quot;μετάφραση&quot; είναι απλό demo κείμενο· στο
-            επόμενο στάδιο θα συνδεθεί με πραγματική μηχανή μετάφρασης.
+            Demo ζωντανού διερμηνέα φωνής. Πάτα{" "}
+            <strong>Start listening</strong>, μίλα στο μικρόφωνο και το κείμενο
+            θα εμφανιστεί στο πλαίσιο <em>Original Speech</em>. Στη συνέχεια θα
+            βλέπεις demo κείμενο στην περιοχή <em>Translated Speech</em>. Σε
+            επόμενα βήματα θα συνδέσουμε πραγματική μετάφραση (AI).
           </p>
-        </header>
 
-        {!isSupported && isSupported !== null && (
-          <div
-            style={{
-              marginBottom: "20px",
-              borderRadius: "10px",
-              border: "1px solid rgba(248,113,113,0.9)",
-              background: "rgba(127,29,29,0.9)",
-              padding: "10px 12px",
-              fontSize: "0.86rem",
-            }}
-          >
-            Ο browser δεν υποστηρίζει ακόμα το Web Speech API. Δοκίμασε Chrome
-            σε desktop για καλύτερα αποτελέσματα. Το UI όμως δουλεύει κανονικά
-            και θα συνδεθεί αργότερα με backend διερμηνέα.
-          </div>
-        )}
+          {!isSupported && (
+            <p
+              style={{
+                marginTop: "10px",
+                fontSize: "0.9rem",
+                color: "#fecaca",
+              }}
+            >
+              ⚠ Ο browser δεν φαίνεται να υποστηρίζει Web Speech API
+              (SpeechRecognition). Η σελίδα λειτουργεί σαν demo UI. Δοκίμασε
+              Chrome ή Edge για καλύτερα αποτελέσματα.
+            </p>
+          )}
+        </header>
 
         {/* CONTROLS */}
         <section
           style={{
-            marginBottom: "20px",
+            marginBottom: "18px",
             display: "flex",
             gap: "12px",
-            flexWrap: "wrap",
           }}
         >
           <button
             onClick={handleStart}
             disabled={!isSupported || isListening}
             style={{
-              padding: "10px 18px",
+              padding: "8px 18px",
               borderRadius: "999px",
-              border: "none",
-              cursor: isSupported && !isListening ? "pointer" : "not-allowed",
-              fontSize: "0.9rem",
-              fontWeight: 600,
+              border: "1px solid rgba(56,189,248,0.9)",
               background: isListening
-                ? "rgba(34,197,94,0.9)"
-                : "rgba(37,99,235,0.95)",
-              opacity: isSupported ? 1 : 0.6,
+                ? "rgba(56,189,248,0.15)"
+                : "rgba(15,23,42,0.9)",
+              color: "#e0f2fe",
+              fontSize: "0.9rem",
+              cursor: !isSupported || isListening ? "not-allowed" : "pointer",
             }}
           >
-            {isListening ? "Listening..." : "Start listening"}
+            Start listening
           </button>
           <button
             onClick={handleStop}
             disabled={!isSupported || !isListening}
             style={{
-              padding: "10px 18px",
+              padding: "8px 18px",
               borderRadius: "999px",
               border: "1px solid rgba(248,113,113,0.9)",
-              cursor: isSupported && isListening ? "pointer" : "not-allowed",
+              background: !isListening
+                ? "rgba(15,23,42,0.9)"
+                : "rgba(248,113,113,0.12)",
+              color: "#fee2e2",
               fontSize: "0.9rem",
-              fontWeight: 600,
-              background: "transparent",
-              color: "#fecaca",
-              opacity: isSupported ? 1 : 0.6,
+              cursor: !isSupported || !isListening ? "not-allowed" : "pointer",
             }}
           >
             Stop
@@ -185,16 +168,16 @@ export default function VoicePage() {
             display: "grid",
             gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
             gap: "18px",
-            marginBottom: "20px",
           }}
         >
+          {/* Original Speech */}
           <div
             style={{
               borderRadius: "16px",
               padding: "18px 16px",
-              border: "1px solid rgba(148,163,184,0.55)",
+              border: "1px solid rgba(37,99,235,0.9)",
               background:
-                "linear-gradient(135deg, rgba(15,23,42,0.96), rgba(30,64,175,0.75))",
+                "linear-gradient(135deg, rgba(15,23,42,0.96), rgba(30,64,175,0.8))",
             }}
           >
             <h2
@@ -206,39 +189,32 @@ export default function VoicePage() {
             >
               Original Speech
             </h2>
-            <p
-              style={{
-                fontSize: "0.9rem",
-                opacity: 0.9,
-              }}
-            >
-              Το κείμενο που αναγνωρίζεται από τη φωνή σου σε πραγματικό χρόνο.
+            <p style={{ fontSize: "0.9rem", opacity: 0.9 }}>
+              Το κείμενο που αναγνωρίζεται από τη φωνή σου σε πραγματικό
+              χρόνο.
             </p>
             <div
               style={{
                 marginTop: "12px",
                 borderRadius: "10px",
-                border: "1px solid rgba(30,64,175,0.8)",
+                border: "1px solid rgba(59,130,246,0.9)",
                 padding: "10px 12px",
-                minHeight: "80px",
+                minHeight: "120px",
                 fontSize: "0.9rem",
-                opacity: 0.9,
+                background: "rgba(15,23,42,0.9)",
                 whiteSpace: "pre-wrap",
               }}
             >
-              {originalText || (
-                <span style={{ opacity: 0.7 }}>
-                  Πάτα &quot;Start listening&quot; και μίλα στο μικρόφωνο…
-                </span>
-              )}
+              {originalText || "[Περίμενε… όταν μιλήσεις θα εμφανιστεί εδώ.]"}
             </div>
           </div>
 
+          {/* Translated Speech */}
           <div
             style={{
               borderRadius: "16px",
               padding: "18px 16px",
-              border: "1px solid rgba(148,163,184,0.55)",
+              border: "1px solid rgba(56,189,248,0.9)",
               background:
                 "linear-gradient(135deg, rgba(15,23,42,0.96), rgba(56,189,248,0.7))",
             }}
@@ -252,60 +228,44 @@ export default function VoicePage() {
             >
               Translated Speech (demo)
             </h2>
-            <p
-              style={{
-                fontSize: "0.9rem",
-                opacity: 0.9,
-              }}
-            >
-              Προσωρινό πεδίο μετάφρασης για το demo. Στο επόμενο στάδιο θα
-              συνδεθεί με πραγματική μηχανή μετάφρασης (API).
+            <p style={{ fontSize: "0.9rem", opacity: 0.9 }}>
+              Demo περιοχή «μετάφρασης». Αργότερα θα συνδεθεί με πραγματική
+              υπηρεσία μετάφρασης & σύνθεσης φωνής (AI).
             </p>
             <div
               style={{
                 marginTop: "12px",
                 borderRadius: "10px",
-                border: "1px solid rgba(56,189,248,0.85)",
+                border: "1px solid rgba(59,130,246,0.9)",
                 padding: "10px 12px",
-                minHeight: "80px",
+                minHeight: "120px",
                 fontSize: "0.9rem",
-                opacity: 0.9,
+                background: "rgba(15,23,42,0.9)",
                 whiteSpace: "pre-wrap",
               }}
             >
-              {translatedText || (
-                <span style={{ opacity: 0.7 }}>
-                  Μόλις ξεκινήσει η αναγνώριση, εδώ θα βλέπεις demo
-                  &quot;μετάφραση&quot;…
-                </span>
-              )}
+              {translatedText}
             </div>
           </div>
         </section>
 
+        {/* FOOTER NOTE */}
         <section
           style={{
-            borderRadius: "16px",
-            padding: "16px 14px",
-            border: "1px dashed rgba(148,163,184,0.6)",
-            background: "rgba(15,23,42,0.9)",
-            fontSize: "0.86rem",
+            marginTop: "22px",
+            borderRadius: "14px",
+            padding: "14px 12px",
+            border: "1px dashed rgba(148,163,184,0.7)",
+            background: "rgba(15,23,42,0.95)",
+            fontSize: "0.82rem",
             lineHeight: 1.5,
           }}
         >
           <strong style={{ color: "#fde68a" }}>Σημείωση υλοποίησης:</strong>{" "}
-          Αυτή είναι η πρώτη λειτουργική έκδοση του Voice. Στο επόμενο βήμα
-          μπορούμε να:
-          <ul
-            style={{
-              marginTop: "6px",
-              paddingLeft: "18px",
-            }}
-          >
-            <li>Προσθέσουμε επιλογή γλωσσών (από / προς)</li>
-            <li>Συνδέσουμε πραγματική μετάφραση (API)</li>
-            <li>Προσθέσουμε αναπαραγωγή φωνής (TTS)</li>
-          </ul>
+          Το Voice module αυτή τη στιγμή είναι demo UI με βασική χρήση του Web
+          Speech API στον browser. Στα επόμενα βήματα μπορούμε να το επεκτείνουμε
+          με πραγματική μετάφραση, επιλογή γλωσσών, αποθήκευση ιστορικού
+          συνομιλιών και σύνδεση με mobile εφαρμογές.
         </section>
       </div>
     </main>
